@@ -8,9 +8,39 @@ Este projeto visa analisar e monitorar padrões de sono, fornecendo insights sob
 
 ## Tecnologias
 
-- Python
+- Python 3.9
+- Jupyter Notebook
+- Pandas
+- NumPy
+- Matplotlib
+- Seaborn
+- Scikit-learn
 - Git
-- Outras tecnologias serão adicionadas conforme necessário
+
+## Configuração do Ambiente
+
+1. Instale o Python 3.9 (se ainda não tiver instalado)
+2. Instale o pipenv:
+   ```bash
+   pip install pipenv
+   ```
+3. Clone o repositório:
+   ```bash
+   git clone https://github.com/LfMourao/sleep-analysis.git
+   cd sleep-analysis
+   ```
+4. Instale as dependências:
+   ```bash
+   pipenv install
+   ```
+5. Ative o ambiente virtual:
+   ```bash
+   pipenv shell
+   ```
+6. Inicie o Jupyter Notebook:
+   ```bash
+   jupyter notebook
+   ```
 
 ## Como Usar
 

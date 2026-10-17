@@ -1,0 +1,265 @@
+{
+  "weights": {
+    "repeatability": 0.25,
+    "responsiveness": 0.2,
+    "convergence": 0.2,
+    "artifact_independence": 0.15,
+    "coverage": 0.1,
+    "evidence": 0.1
+  },
+  "evidence_scores": {"A": 1.0, "B": 0.7, "C": 0.4},
+  "min_icc": 0.4,
+  "min_split_half": 0.7,
+  "min_pairs": 8,
+  "min_spearman_n": 30,
+  "min_switches": 3,
+  "switch_window": 7,
+  "switch_gap_days": 2,
+  "rolling_window": 14,
+  "usage_min_hours": 4,
+  "calibration_until": "2026-05-01",
+  "complement_score_gap": 0.05,
+  "complement_max_correlation": 0.5,
+  "max_indicators": 8,
+  "partial_covariates": ["pressure", "usage_hours", "month_index"],
+  "anchors": [
+    {"name": "garmin_hrv", "direction": "higher_better"},
+    {"name": "garmin_resting_heart_rate", "direction": "lower_better"},
+    {"name": "garmin_awake_count", "direction": "lower_better"},
+    {"name": "garmin_sleep_stress", "direction": "lower_better"}
+  ],
+  "indicators": [
+    {
+      "name": "usage_hours",
+      "dimension": "dose",
+      "direction": "higher_better",
+      "pressure_response": null,
+      "evidence": "A",
+      "source": "Horas de máscara são medida direta do STR, não um evento inferido. O filtro de 4 h deste projeto é regra de comparabilidade, no mesmo espírito do critério administrativo de adesão, e não um limiar clínico validado aqui."
+    },
+    {
+      "name": "mask_events_per_h",
+      "dimension": "dose",
+      "direction": "lower_better",
+      "pressure_response": null,
+      "evidence": "C",
+      "source": "Tirar e recolocar a máscara interrompe a dose. Não achei validação externa desse contador como marcador de qualidade; entra como complemento da cobertura."
+    },
+    {
+      "name": "garmin_sleep_hours",
+      "dimension": "dose",
+      "direction": "higher_better",
+      "pressure_response": null,
+      "evidence": "B",
+      "source": "Chinoy et al. (PMC9412437): Garmin Forerunner 245 acertou 89% das épocas sono/vigília contra polissonografia (kappa 0,35) e superestimou o tempo total. Serve para duração, não para fase."
+    },
+    {
+      "name": "ahi",
+      "dimension": "obstruction",
+      "direction": "lower_better",
+      "pressure_response": "decreases",
+      "evidence": "B",
+      "source": "Guia clínico do AirSense 10: apneia é queda de fluxo acima de 75% por ≥10 s; hipopneia é queda até 50% por ≥10 s; o AHI divide pelo tempo de máscara. Com vazamento alto e EPR, a detecção pode falhar. Meta-análise (Iftikhar, Sleep Breath 2023, 10.1007/s11325-023-02780-w): viés médio dos CPAP ResMed −1,01/h contra polissonografia, limites de concordância −3,55 a 1,54. No S9 (Baek, Sleep Med Res 2016, 10.17241/smr.2016.00059) o aparelho subestimou o AHI em 1,30/h, sobretudo hipopneias (r = 0,74)."
+    },
+    {
+      "name": "oai",
+      "dimension": "obstruction",
+      "direction": "lower_better",
+      "pressure_response": "decreases",
+      "evidence": "B",
+      "source": "O guia do AirSense 10 separa apneia obstrutiva e central por oscilação forçada (1 cmH2O pico a pico, 4 Hz). A meta-análise mostra viés pequeno no AHI total e imprecisão larga; a fração obstrutiva não foi validada à parte neste levantamento."
+    },
+    {
+      "name": "hi",
+      "dimension": "obstruction",
+      "direction": "lower_better",
+      "pressure_response": "decreases",
+      "evidence": "B",
+      "source": "Hipopneia da ResMed: fluxo cai até 50% por ≥10 s, sem SpO2 e sem EEG. No S9, o índice de hipopneia do aparelho ficou 2,98/h abaixo da leitura manual (Baek 2016). É o componente que mais explica a subcontagem descrita na literatura."
+    },
+    {
+      "name": "cai",
+      "dimension": "obstruction",
+      "direction": "lower_better",
+      "pressure_response": "increases",
+      "evidence": "B",
+      "source": "Central classificada por FOT no guia do AirSense 10. Mais pressão pode aumentar central residual; por isso a resposta esperada à pressão é subir, não cair. Concordância com polissonografia no AirSense 10 Elite não foi verificada além da descrição do fabricante."
+    },
+    {
+      "name": "hypopnea30_per_usage_h",
+      "dimension": "obstruction",
+      "direction": "lower_better",
+      "pressure_response": "decreases",
+      "evidence": "C",
+      "source": "Queda de 30% só no fluxo, sem a dessaturação de 3% ou o despertar que a regra 1A da AASM exige (aasm.org, clarificação da hipopneia). Conta mais do que um AHI clínico. A regra 1B, hoje opcional, exige dessaturação de 4% e também não é reproduzida aqui."
+    },
+    {
+      "name": "hypopnea50_per_usage_h",
+      "dimension": "obstruction",
+      "direction": "lower_better",
+      "pressure_response": "decreases",
+      "evidence": "B",
+      "source": "Mesma queda de 50% por ≥10 s da hipopneia do guia do AirSense 10. O detector já inclui quedas mais fundas, então o índice é o análogo de fluxo do AHI e não deve ser somado a apnea75 ou apnea90."
+    },
+    {
+      "name": "apnea90_per_usage_h",
+      "dimension": "obstruction",
+      "direction": "lower_better",
+      "pressure_response": "decreases",
+      "evidence": "B",
+      "source": "Queda de ≥90% por ≥10 s, a regra de apneia da AASM. O protocolo NCT03043703 usa essa definição na polissonografia. Sem cinta de esforço, obstrutiva e central ficam juntas."
+    },
+    {
+      "name": "flow_limited_pct",
+      "dimension": "obstruction",
+      "direction": "lower_better",
+      "pressure_response": "decreases",
+      "evidence": "B",
+      "source": "Condos 1994 (AJRCCM 150:475) e Hosselet 1998 (AJRCCM 157:1461): o contorno inspiratório achatado acompanha resistência alta com CPAP e com cânula nasal. O workshop da ATS de 2017 (Ann Am Thorac Soc 14:1076) trata achatamento e NED como sinais de limitação, e registra que a concordância visual entre leitores ainda é fraca. Os cortes NED 34 e flatness 0,85 são convenção do AirwayLab, não regra da AASM."
+    },
+    {
+      "name": "device_flow_lim_min_h",
+      "dimension": "obstruction",
+      "direction": "lower_better",
+      "pressure_response": "decreases",
+      "evidence": "C",
+      "source": "Índice proprietário do PLD (FlowLim.2s). A limitação de fluxo tem base fisiológica; a escala 0–1 deste canal não foi calibrada contra pressão esofágica neste levantamento."
+    },
+    {
+      "name": "snore_min_h",
+      "dimension": "obstruction",
+      "direction": "lower_better",
+      "pressure_response": "decreases",
+      "evidence": "C",
+      "source": "Ronco é vibração de via aérea parcialmente fechada. O canal do aparelho não tem estudo de concordância citado aqui; vale como tendência dentro da mesma máscara e da mesma pressão."
+    },
+    {
+      "name": "apnea_cluster_per_h",
+      "dimension": "obstruction",
+      "direction": "lower_better",
+      "pressure_response": "decreases",
+      "evidence": "C",
+      "source": "Três ou mais apneias do aparelho em 5 minutos marcam um episódio que a média da noite dilui. É uma leitura deste projeto, sem validação externa."
+    },
+    {
+      "name": "rin",
+      "dimension": "fragmentation",
+      "direction": "lower_better",
+      "pressure_response": "decreases",
+      "evidence": "C",
+      "source": "O guia do AirSense 10 diz que o aparelho reporta RERA. A conferência interna deste repositório (rin contra eventos arousal, correlação 0,998) mostra consistência do arquivo, não concordância com EEG."
+    },
+    {
+      "name": "surge_index",
+      "dimension": "fragmentation",
+      "direction": "lower_better",
+      "pressure_response": "decreases",
+      "evidence": "B",
+      "source": "Khoo et al., J Appl Physiol 1996 (80:1475): o microdespertar no NREM produz um salto de ventilação, com pico de +64% na segunda respiração. O corte de 1,5 vez por duas respirações é uma aproximação deste projeto, não o método do artigo."
+    },
+    {
+      "name": "rera_like_index",
+      "dimension": "fragmentation",
+      "direction": "lower_better",
+      "pressure_response": "decreases",
+      "evidence": "C",
+      "source": "Junta achatamento (Hosselet) e salto de ventilação (Khoo). Na validação interna, recuperou 24% dos arousal da ResMed. Critério heurístico."
+    },
+    {
+      "name": "wake_like_bouts",
+      "dimension": "fragmentation",
+      "direction": "lower_better",
+      "pressure_response": null,
+      "evidence": "C",
+      "source": "Minutos de respiração irregular como proxy de vigília. Os limiares de coeficiente de variação foram calibrados nos percentis desta própria série, não num exame."
+    },
+    {
+      "name": "garmin_awake_count",
+      "dimension": "fragmentation",
+      "direction": "lower_better",
+      "pressure_response": null,
+      "evidence": "C",
+      "source": "No mesmo estudo do Forerunner 245, o relógio só reconheceu 27% das épocas de vigília da polissonografia. Despertar contado pelo pulso é o ponto fraco do aparelho."
+    },
+    {
+      "name": "stable_pct",
+      "dimension": "stability",
+      "direction": "higher_better",
+      "pressure_response": "increases",
+      "evidence": "C",
+      "source": "Janela de 5 min com respiração regular e sem evento. Os cortes foram o percentil 25 desta série a 7 cmH2O. A queda do 1º para o 3º terço é compatível com sono profundo e depois REM, e não prova o estágio."
+    },
+    {
+      "name": "periodicity_index",
+      "dimension": "stability",
+      "direction": "lower_better",
+      "pressure_response": null,
+      "evidence": "C",
+      "source": "Fração da potência da ventilação em ciclos de 30 a 100 s. Respiração de Cheyne-Stokes é um padrão conhecido; este índice espectral não foi comparado ao detector de CSR da ResMed nem a polissonografia."
+    },
+    {
+      "name": "garmin_hrv",
+      "dimension": "recovery",
+      "direction": "higher_better",
+      "pressure_response": null,
+      "evidence": "C",
+      "source": "Miller et al. (PMC12367097): HRV noturna do Garmin Fenix 6 teve CCC 0,87 e erro absoluto médio de 10,5% contra ECG, pior que Oura e WHOOP. Serve como tendência da própria pessoa, não como valor clínico."
+    },
+    {
+      "name": "garmin_resting_heart_rate",
+      "dimension": "recovery",
+      "direction": "lower_better",
+      "pressure_response": null,
+      "evidence": "C",
+      "source": "O mesmo estudo excluiu a FC de repouso noturna do Garmin por inconsistência de método. Um snapshot de 2 min da Garmin (CinC 2023, 10.22489/cinc.2023.237) teve erro abaixo de 2% na FC, mas isso não é a FC da noite inteira. Resultado da FC noturna deste relógio: não verificado."
+    },
+    {
+      "name": "garmin_sleep_stress",
+      "dimension": "recovery",
+      "direction": "lower_better",
+      "pressure_response": null,
+      "evidence": "C",
+      "source": "Estresse no sono é índice proprietário do Garmin. Não achei comparação com polissonografia ou com cortisol. Entra só como desfecho interno do relógio."
+    },
+    {
+      "name": "garmin_body_battery_change",
+      "dimension": "recovery",
+      "direction": "higher_better",
+      "pressure_response": null,
+      "evidence": "C",
+      "source": "Body Battery é proprietário. Sem validação externa encontrada. A mudança na noite descreve a recuperação que o relógio acredita ter visto."
+    },
+    {
+      "name": "garmin_deep_hours",
+      "dimension": "recovery",
+      "direction": "higher_better",
+      "pressure_response": null,
+      "evidence": "C",
+      "source": "Fases do Forerunner 245 contra polissonografia tiveram kappa 0,25 (PMC9412437). Horas de sono profundo do relógio não sustentam comparação fina entre noites."
+    },
+    {
+      "name": "garmin_rem_hours",
+      "dimension": "recovery",
+      "direction": "higher_better",
+      "pressure_response": null,
+      "evidence": "C",
+      "source": "A mesma validação mostra acordo fraco nas fases. REM do relógio fica de fora do núcleo enquanto o kappa não passar de justo."
+    },
+    {
+      "name": "garmin_sleep_score",
+      "dimension": "recovery",
+      "direction": "higher_better",
+      "pressure_response": null,
+      "evidence": "C",
+      "source": "Nota proprietária que mistura duração, fases e fisiologia do próprio relógio. Não é desfecho independente dos outros campos Garmin."
+    },
+    {
+      "name": "garmin_spo2_avg",
+      "dimension": "recovery",
+      "direction": "higher_better",
+      "pressure_response": null,
+      "evidence": "C",
+      "source": "SpO2 de pulso. No snapshot de 2 min da Garmin (CinC 2023), 16,7% das leituras ficaram abaixo de 95% com referência ≥98%. Tendência, não oximetria."
+    }
+  ]
+}

@@ -6,42 +6,20 @@ Um projeto para análise de padrões de sono e qualidade do sono.
 
 Este projeto visa analisar e monitorar padrões de sono, fornecendo insights sobre a qualidade do sono e sugestões para melhorá-la.
 
-## Tecnologias
-
-- Python 3.9
-- Jupyter Notebook
-- Pandas
-- NumPy
-- Matplotlib
-- Seaborn
-- Scikit-learn
-- Git
+Objetivos em `docs/objectives.md`, arquitetura em `docs/architecture.md` e indicadores para comparar noites em `docs/quality-indicators.md`.
 
 ## Configuração do Ambiente
 
-1. Instale o Python 3.9 (se ainda não tiver instalado)
-2. Instale o pipenv:
-   ```bash
-   pip install pipenv
-   ```
-3. Clone o repositório:
-   ```bash
-   git clone https://github.com/LfMourao/sleep-analysis.git
-   cd sleep-analysis
-   ```
-4. Instale as dependências:
-   ```bash
-   pipenv install
-   ```
-5. Ative o ambiente virtual:
-   ```bash
-   pipenv shell
-   ```
-6. Inicie o Jupyter Notebook:
-   ```bash
-   jupyter notebook
-   ```
+Requer [uv](https://docs.astral.sh/uv/) (instala o Python 3.12 e as dependências):
+
+```bash
+uv sync
+```
 
 ## Como Usar
 
-Instruções de uso serão adicionadas em breve. 
+```bash
+uv run sleep-ingest D:   # backup incremental do cartão do CPAP para data/raw
+uv run sleep-build       # converte os EDF em tabelas Parquet em data/processed
+uv run jupyter lab       # abrir notebooks/01_overview.ipynb
+```

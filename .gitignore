@@ -39,4 +39,7 @@ ENV/
 
 # OS
 .DS_Store
-Thumbs.db 
+Thumbs.db
+
+# Dados de saúde (cartão do CPAP e tabelas derivadas) não vão para o git
+data/

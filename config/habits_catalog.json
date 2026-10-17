@@ -1,0 +1,44 @@
+{
+  "alcohol": {
+    "type": "boolean",
+    "unit": null,
+    "lag": "same_night",
+    "expected": "worse",
+    "description": "Álcool na tarde ou noite desta data. A data é a noite ResMed, que começa na tarde desse dia."
+  },
+  "caffeine_after_15": {
+    "type": "boolean",
+    "unit": null,
+    "lag": "same_night",
+    "expected": "worse",
+    "description": "Cafeína depois das 15h nesta data."
+  },
+  "last_meal_hour": {
+    "type": "number",
+    "unit": "h",
+    "lag": "same_night",
+    "expected": null,
+    "description": "Hora local da última refeição, de 0 a 24."
+  },
+  "nasal_congestion": {
+    "type": "number",
+    "unit": "score_0_3",
+    "lag": "same_night",
+    "expected": "worse",
+    "description": "Congestão nasal subjetiva: 0 nenhuma, 3 forte."
+  },
+  "supplement": {
+    "type": "text",
+    "unit": null,
+    "lag": "same_night",
+    "expected": null,
+    "description": "Suplemento tomado nesta data. Vários itens no mesmo dia vão numa linha só, separados no texto."
+  },
+  "supplement_dose_mg": {
+    "type": "number",
+    "unit": "mg",
+    "lag": "same_night",
+    "expected": null,
+    "description": "Dose em mg do suplemento nomeado na coluna note."
+  }
+}

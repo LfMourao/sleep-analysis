@@ -11,8 +11,11 @@ Tabelas:
 - garmin_*: sono, séries e hábitos do relógio, quando data/raw/garmin existe
 """
 
+import argparse
+import hashlib
+import json
+import pickle
 import re
-import shutil
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -24,6 +27,13 @@ from sleep_analysis.edf import read_edf, signal_timestamps
 from sleep_analysis.paths import BREATHS_DIR, CARD_DIR, PROCESSED_DIR, SIGNALS_DIR
 from sleep_analysis.respiratory_metrics import analyze_night
 
+CACHE_DIR = PROCESSED_DIR / "cache"
+SESSIONS_CACHE_DIR = CACHE_DIR / "sessions"
+METRICS_CACHE_DIR = CACHE_DIR / "metrics"
+MANIFEST_PATH = CACHE_DIR / "manifest.json"
+SEGMENT_CODE = ["build.py", "edf.py", "breaths.py"]
+METRICS_CODE = ["respiratory_metrics.py"]
+SESSION_COLUMNS = ["night", "session_start", "signal_start", "signal_end", "duration_min"]
 EPOCH = date(1970, 1, 1)
 # O dia da ResMed vai de meio-dia a meio-dia; MaskOn/MaskOff são minutos desde o meio-dia
 DAY_START_HOUR = 12
@@ -105,42 +115,38 @@ def session_start(path: Path) -> datetime:
     return datetime.strptime("_".join(path.stem.split("_")[:2]), "%Y%m%d_%H%M%S")
 
 
-def build_sessions_and_signals() -> pd.DataFrame:
-    if SIGNALS_DIR.exists():
-        shutil.rmtree(SIGNALS_DIR)
-    SIGNALS_DIR.mkdir(parents=True)
-
+def read_night_signals(night_dir: Path) -> tuple[list[dict], pd.DataFrame]:
     rows = []
-    for night_dir in sorted((CARD_DIR / "DATALOG").iterdir()):
-        frames = []
-        for pld_path in sorted(night_dir.glob("*_PLD.edf")):
-            edf = read_edf(pld_path)
-            physical = edf.read_physical()
-            n_records = next(iter(physical.values())).shape[0]
-            if n_records == 0:
-                continue
-            samples_per_record = physical["Press.2s"].shape[1]
-            frame = pd.DataFrame({"timestamp": signal_timestamps(edf, samples_per_record, n_records)})
-            for label, column in PLD_COLUMNS.items():
-                frame[column] = physical[label].reshape(-1)
-            frame["leak"] = frame["leak"] * LITERS_PER_SECOND_TO_PER_MINUTE
-            frame["session_start"] = session_start(pld_path)
-            frames.append(frame)
+    frames = []
+    night = pd.Timestamp(datetime.strptime(night_dir.name, "%Y%m%d"))
+    for pld_path in sorted(night_dir.glob("*_PLD.edf")):
+        edf = read_edf(pld_path)
+        physical = edf.read_physical()
+        n_records = next(iter(physical.values())).shape[0]
+        if n_records == 0:
+            continue
+        samples_per_record = physical["Press.2s"].shape[1]
+        frame = pd.DataFrame({"timestamp": signal_timestamps(edf, samples_per_record, n_records)})
+        for label, column in PLD_COLUMNS.items():
+            frame[column] = physical[label].reshape(-1)
+        frame["leak"] = frame["leak"] * LITERS_PER_SECOND_TO_PER_MINUTE
+        frame["session_start"] = session_start(pld_path)
+        frames.append(frame)
 
-            rows.append(
-                {
-                    "night": pd.Timestamp(datetime.strptime(night_dir.name, "%Y%m%d")),
-                    "session_start": session_start(pld_path),
-                    "signal_start": edf.start,
-                    "signal_end": edf.start + timedelta(seconds=n_records * edf.record_duration_s),
-                    "duration_min": n_records * edf.record_duration_s / 60,
-                }
-            )
-        if frames:
-            signals = pd.concat(frames, ignore_index=True)
-            signals.insert(0, "night", pd.Timestamp(datetime.strptime(night_dir.name, "%Y%m%d")))
-            signals.to_parquet(SIGNALS_DIR / f"{night_dir.name}.parquet", index=False)
-    return pd.DataFrame(rows)
+        rows.append(
+            {
+                "night": night,
+                "session_start": session_start(pld_path),
+                "signal_start": edf.start,
+                "signal_end": edf.start + timedelta(seconds=n_records * edf.record_duration_s),
+                "duration_min": n_records * edf.record_duration_s / 60,
+            }
+        )
+    if not frames:
+        return rows, pd.DataFrame()
+    signals = pd.concat(frames, ignore_index=True)
+    signals.insert(0, "night", night)
+    return rows, signals
 
 
 def build_events() -> pd.DataFrame:
@@ -162,50 +168,110 @@ def build_events() -> pd.DataFrame:
     return pd.DataFrame(rows, columns=["night", "timestamp", "event_type", "duration_s"])
 
 
-def build_breaths_and_metrics() -> tuple[pd.DataFrame, pd.DataFrame]:
-    if BREATHS_DIR.exists():
-        shutil.rmtree(BREATHS_DIR)
-    BREATHS_DIR.mkdir(parents=True)
+def _code_hash(names: list[str]) -> str:
+    digest = hashlib.sha256()
+    for name in names:
+        digest.update((Path(__file__).parent / name).read_bytes())
+    return digest.hexdigest()[:16]
 
-    metrics = []
-    events = []
-    for night_dir in sorted((CARD_DIR / "DATALOG").iterdir()):
-        breaths = segment_night(night_dir)
-        if breaths.empty:
+
+def _fingerprint(night_dir: Path) -> str:
+    entries = sorted((path.name, path.stat().st_size, path.stat().st_mtime_ns) for path in night_dir.iterdir() if path.is_file())
+    return hashlib.sha256(repr(entries).encode()).hexdigest()[:16]
+
+
+def _load_manifest() -> dict:
+    return json.loads(MANIFEST_PATH.read_text(encoding="utf-8")) if MANIFEST_PATH.exists() else {}
+
+
+def _remove(*paths: Path) -> None:
+    for path in paths:
+        path.unlink(missing_ok=True)
+
+
+def _analyze_cached_breaths(name: str) -> None:
+    breaths_path = BREATHS_DIR / f"{name}.parquet"
+    metrics_path = METRICS_CACHE_DIR / f"{name}.pkl"
+    if not breaths_path.exists():
+        _remove(metrics_path)
+        return
+    breaths = pd.read_parquet(breaths_path)
+    signals_path = SIGNALS_DIR / f"{name}.parquet"
+    device_flow_limitation = (
+        pd.read_parquet(signals_path, columns=["flow_limitation"])["flow_limitation"] if signals_path.exists() else None
+    )
+    with metrics_path.open("wb") as handle:
+        pickle.dump(analyze_night(breaths, device_flow_limitation), handle)
+
+
+def _segment_night_dir(night_dir: Path) -> None:
+    name = night_dir.name
+    sessions_path = SESSIONS_CACHE_DIR / f"{name}.parquet"
+    signals_path = SIGNALS_DIR / f"{name}.parquet"
+    breaths_path = BREATHS_DIR / f"{name}.parquet"
+    _remove(sessions_path, signals_path, breaths_path)
+    rows, signals = read_night_signals(night_dir)
+    pd.DataFrame(rows, columns=SESSION_COLUMNS).to_parquet(sessions_path, index=False)
+    if not signals.empty:
+        signals.to_parquet(signals_path, index=False)
+    breaths = segment_night(night_dir)
+    if not breaths.empty:
+        breaths.to_parquet(breaths_path, index=False)
+
+
+def build_detail(full: bool = False, refresh_metrics: bool = False) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Sessões, sinais, breaths e métricas do fluxo, refazendo só as noites que mudaram no cartão.
+
+    O cache cai inteiro quando muda o código de leitura (edf, breaths, build) e só as métricas
+    quando muda respiratory_metrics.py.
+    """
+    for directory in (SIGNALS_DIR, BREATHS_DIR, SESSIONS_CACHE_DIR, METRICS_CACHE_DIR):
+        directory.mkdir(parents=True, exist_ok=True)
+    manifest = _load_manifest()
+    segment_code = _code_hash(SEGMENT_CODE)
+    metrics_code = _code_hash(METRICS_CODE)
+    known = manifest.get("nights", {}) if not full and manifest.get("segment_code") == segment_code else {}
+    metrics_stale = refresh_metrics or full or manifest.get("metrics_code") != metrics_code
+
+    night_dirs = sorted(path for path in (CARD_DIR / "DATALOG").iterdir() if path.is_dir())
+    fingerprints = {}
+    segmented = analyzed = 0
+    for night_dir in night_dirs:
+        name = night_dir.name
+        fingerprints[name] = _fingerprint(night_dir)
+        changed = known.get(name) != fingerprints[name] or not (SESSIONS_CACHE_DIR / f"{name}.parquet").exists()
+        if changed:
+            _segment_night_dir(night_dir)
+            segmented += 1
+        missing_metrics = (BREATHS_DIR / f"{name}.parquet").exists() and not (METRICS_CACHE_DIR / f"{name}.pkl").exists()
+        if changed or metrics_stale or missing_metrics:
+            _analyze_cached_breaths(name)
+            analyzed += 1
+    MANIFEST_PATH.write_text(
+        json.dumps({"segment_code": segment_code, "metrics_code": metrics_code, "nights": fingerprints}, indent=1),
+        encoding="utf-8",
+    )
+    print(f"detalhe: {segmented} noites lidas do cartão, {analyzed} com métricas recalculadas, {len(night_dirs)} no total")
+
+    session_frames = [pd.read_parquet(SESSIONS_CACHE_DIR / f"{path.name}.parquet") for path in night_dirs]
+    sessions = pd.concat([frame for frame in session_frames if not frame.empty], ignore_index=True)
+    metrics, events = [], []
+    for path in night_dirs:
+        metrics_path = METRICS_CACHE_DIR / f"{path.name}.pkl"
+        if not metrics_path.exists():
             continue
-        breaths.to_parquet(BREATHS_DIR / f"{night_dir.name}.parquet", index=False)
-        signals_path = SIGNALS_DIR / f"{night_dir.name}.parquet"
-        device_flow_limitation = (
-            pd.read_parquet(signals_path, columns=["flow_limitation"])["flow_limitation"] if signals_path.exists() else None
-        )
-        night_metrics, night_events = analyze_night(breaths, device_flow_limitation)
+        with metrics_path.open("rb") as handle:
+            night_metrics, night_events = pickle.load(handle)
         metrics.append(night_metrics)
         if not night_events.empty:
             events.append(night_events)
-    return pd.DataFrame(metrics), pd.concat(events, ignore_index=True)
+    respiratory_events = pd.concat(events, ignore_index=True) if events else pd.DataFrame()
+    return sessions, pd.DataFrame(metrics), respiratory_events
 
 
 def rebuild_flow_metrics() -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Recalcula night_metrics e respiratory_events a partir dos breaths já segmentados.
-
-    Não relê o EDF. Serve para aplicar um detector novo sem reprocessar o cartão.
-    """
-    metrics = []
-    events = []
-    for path in sorted(BREATHS_DIR.glob("*.parquet")):
-        breaths = pd.read_parquet(path)
-        if breaths.empty:
-            continue
-        signals_path = SIGNALS_DIR / path.name
-        device_flow_limitation = (
-            pd.read_parquet(signals_path, columns=["flow_limitation"])["flow_limitation"] if signals_path.exists() else None
-        )
-        night_metrics, night_events = analyze_night(breaths, device_flow_limitation)
-        metrics.append(night_metrics)
-        if not night_events.empty:
-            events.append(night_events)
-    night_metrics = pd.DataFrame(metrics)
-    respiratory_events = pd.concat(events, ignore_index=True) if events else pd.DataFrame()
+    """Recalcula night_metrics e respiratory_events a partir dos breaths já segmentados."""
+    _, night_metrics, respiratory_events = build_detail(refresh_metrics=True)
     night_metrics.to_parquet(PROCESSED_DIR / "night_metrics.parquet", index=False)
     respiratory_events.to_parquet(PROCESSED_DIR / "respiratory_events.parquet", index=False)
     print(f"night_metrics: {len(night_metrics)} noites; {len(respiratory_events)} eventos inferidos")
@@ -213,13 +279,16 @@ def rebuild_flow_metrics() -> tuple[pd.DataFrame, pd.DataFrame]:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Converte o backup do cartão e do Garmin em Parquet")
+    parser.add_argument("--full", action="store_true", help="Ignora o cache e relê todas as noites do cartão")
+    args = parser.parse_args()
     PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
 
     nights = build_nights()
     nights.to_parquet(PROCESSED_DIR / "nights.parquet", index=False)
     print(f"nights: {len(nights)} noites ({nights['night'].min():%d/%m/%Y} a {nights['night'].max():%d/%m/%Y})")
 
-    sessions = build_sessions_and_signals()
+    sessions, night_metrics, respiratory_events = build_detail(full=args.full)
     sessions.to_parquet(PROCESSED_DIR / "sessions.parquet", index=False)
     print(f"sessions: {len(sessions)} sessões em {sessions['night'].nunique()} noites com sinais detalhados")
 
@@ -227,7 +296,6 @@ def main() -> None:
     events.to_parquet(PROCESSED_DIR / "events.parquet", index=False)
     print(f"events: {len(events)} eventos")
 
-    night_metrics, respiratory_events = build_breaths_and_metrics()
     night_metrics.to_parquet(PROCESSED_DIR / "night_metrics.parquet", index=False)
     respiratory_events.to_parquet(PROCESSED_DIR / "respiratory_events.parquet", index=False)
     print(f"night_metrics: {len(night_metrics)} noites com fluxo de 25 Hz; {len(respiratory_events)} eventos inferidos")

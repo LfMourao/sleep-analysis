@@ -21,7 +21,8 @@ flowchart LR
 |---|---|---|
 | Backup | `src/sleep_analysis/ingest.py` | Cópia incremental do cartão para `data/raw/card` (nada é apagado) e snapshot dos arquivos reescritos em `data/raw/snapshots/<timestamp>` |
 | Backup Garmin | `src/sleep_analysis/garmin_sync.py` (`sleep-garmin-sync`) | Busca `dailySleepData` do Garmin Connect para `data/raw/garmin/daily/<calendarDate>.json` (dia em que acordei), relendo os últimos 3 dias; versões reescritas vão para `data/raw/snapshots/<timestamp>/garmin`. Token em `~/.garminconnect`. `--import-dir` copia um export já salvo |
-| Conversão | `src/sleep_analysis/build.py` + `edf.py` | Lê os EDF e gera as tabelas Parquet em `data/processed`. É reconstruída do zero a cada execução |
+| Conversão | `src/sleep_analysis/build.py` + `edf.py` | Lê os EDF e gera as tabelas Parquet em `data/processed`. Incremental: `data/processed/cache/manifest.json` guarda a impressão digital de cada pasta do DATALOG e o hash do código; só noites alteradas são relidas, e mudança em `respiratory_metrics.py` recalcula só as métricas. `--full` ignora o cache |
+| Atualização | `src/sleep_analysis/update.py` (`sleep-update`) + `latest.py` (`sleep-latest`) | Acha o cartão pelo PowerShell, roda ingest, Garmin sem prompt (`--non-interactive`, código 3 sem token) e build, e imprime o resumo das últimas noites contra a referência anterior à cirurgia. Fluxo do agente em `.cursor/skills/sleep-data-update/SKILL.md` |
 | Consulta | `src/sleep_analysis/db.py` | DuckDB em memória com as tabelas expostas como views |
 | Estudo | `config/study.json` + `study.py` | Data da cirurgia, dias de recuperação excluídos e tamanho da linha de base |
 | Contexto por noite | `data/reference/night_notes.json` + `load_night_notes()` | Fita na boca (`mouthTape`), uso parcial (`partial`) e nota livre (`note`), unidos por `night`; arquivo opcional, ausências ficam desconhecidas |

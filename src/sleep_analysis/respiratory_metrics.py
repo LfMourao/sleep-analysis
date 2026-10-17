@@ -76,12 +76,13 @@ def add_baseline(breaths: pd.DataFrame) -> pd.DataFrame:
 
 def find_runs(mask: pd.Series, sessions: pd.Series) -> list[tuple[int, int]]:
     """Trechos contíguos (posições início/fim inclusivas) onde mask é verdadeiro, sem cruzar sessões."""
-    breaks = (mask != mask.shift()) | (sessions != sessions.shift())
-    groups = breaks.cumsum()
-    runs = []
-    for _, positions in pd.Series(np.arange(len(mask)))[mask.to_numpy()].groupby(groups[mask].to_numpy()):
-        runs.append((int(positions.iloc[0]), int(positions.iloc[-1])))
-    return runs
+    flags = mask.to_numpy(dtype=bool)
+    session_values = sessions.to_numpy()
+    breaks = np.ones(len(flags), dtype=bool)
+    breaks[1:] = (flags[1:] != flags[:-1]) | (session_values[1:] != session_values[:-1])
+    starts = np.flatnonzero(flags & breaks)
+    ends = np.flatnonzero(flags & np.append(breaks[1:], True))
+    return list(zip(starts.tolist(), ends.tolist()))
 
 
 def detect_surges(breaths: pd.DataFrame) -> pd.DataFrame:
@@ -125,18 +126,22 @@ def detect_hypopneas(
     # que mantém volume normal mas fica longa
     low = breaths["valid"] & (breaths["vent_ratio"] <= edge_vent_ratio)
     in_hypopnea = np.zeros(len(breaths), dtype=bool)
-    surge_times = surges["timestamp"].to_numpy()
+    surge_times = surges["timestamp"].to_numpy(dtype="datetime64[ns]")
+    starts = breaths["t_start"].to_numpy(dtype="datetime64[ns]")
+    ends = breaths["t_end"].to_numpy(dtype="datetime64[ns]")
+    ratios = breaths["vent_ratio"].to_numpy(dtype=float)
+    surge_window = np.timedelta64(int(HYPOPNEA_SURGE_WINDOW_S * 1e9), "ns")
     rows = []
     for start, end in find_runs(low, breaths["session_start"]):
-        begin = breaths["t_start"].iat[start]
-        finish = breaths["t_end"].iat[end]
-        duration = (finish - begin).total_seconds()
-        if duration < min_s or breaths["vent_ratio"].iloc[start : end + 1].mean() > vent_ratio:
+        begin = starts[start]
+        finish = ends[end]
+        duration = (finish - begin) / np.timedelta64(1, "s")
+        segment = ratios[start : end + 1]
+        if duration < min_s or segment.mean() > vent_ratio:
             continue
         in_hypopnea[start : end + 1] = True
-        limit = finish + pd.Timedelta(seconds=HYPOPNEA_SURGE_WINDOW_S)
-        with_surge = bool(((surge_times >= np.datetime64(finish)) & (surge_times <= np.datetime64(limit))).any())
-        rows.append({"timestamp": begin, "duration_s": duration, "with_surge": with_surge})
+        with_surge = bool(((surge_times >= finish) & (surge_times <= finish + surge_window)).any())
+        rows.append({"timestamp": pd.Timestamp(begin), "duration_s": float(duration), "with_surge": with_surge})
     return pd.DataFrame(rows, columns=["timestamp", "duration_s", "with_surge"]), in_hypopnea
 
 

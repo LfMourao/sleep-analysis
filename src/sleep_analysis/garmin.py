@@ -41,6 +41,17 @@ def utc_from_text(value) -> pd.Timestamp:
     return pd.to_datetime(value, utc=True)
 
 
+def _utc_columns(frame: pd.DataFrame, columns: list[str], unit: str | None = None) -> pd.DataFrame:
+    for column in columns:
+        if column not in frame:
+            continue
+        if unit:
+            frame[column] = pd.to_datetime(pd.to_numeric(frame[column]), unit=unit, utc=True)
+        else:
+            frame[column] = pd.to_datetime(frame[column].replace("", None), utc=True, format="ISO8601")
+    return frame
+
+
 def hours(seconds) -> float | None:
     if seconds is None:
         return None
@@ -96,20 +107,20 @@ def build_sleep_tables() -> dict[str, pd.DataFrame]:
         )
         for sample in payload.get("sleepHeartRate") or []:
             heart_rate.append(
-                {"night": night, "timestamp_utc": utc_from_millis(sample.get("startGMT")), "heart_rate_bpm": sample.get("value")}
+                {"night": night, "timestamp_utc": sample.get("startGMT"), "heart_rate_bpm": sample.get("value")}
             )
         for sample in payload.get("wellnessEpochSPO2DataDTOList") or []:
             spo2.append(
                 {
                     "night": night,
-                    "timestamp_utc": utc_from_text(sample.get("epochTimestamp")),
+                    "timestamp_utc": sample.get("epochTimestamp"),
                     "spo2_percent": sample.get("spo2Reading"),
                     "reading_confidence": sample.get("readingConfidence"),
                 }
             )
         for sample in payload.get("hrvData") or []:
             hrv.append(
-                {"night": night, "timestamp_utc": utc_from_millis(sample.get("startGMT")), "hrv_ms": sample.get("value")}
+                {"night": night, "timestamp_utc": sample.get("startGMT"), "hrv_ms": sample.get("value")}
             )
         for segment in payload.get("sleepLevels") or []:
             level = segment.get("activityLevel")
@@ -117,18 +128,18 @@ def build_sleep_tables() -> dict[str, pd.DataFrame]:
             stages.append(
                 {
                     "night": night,
-                    "start_utc": utc_from_text(segment.get("startGMT")),
-                    "end_utc": utc_from_text(segment.get("endGMT")),
+                    "start_utc": segment.get("startGMT"),
+                    "end_utc": segment.get("endGMT"),
                     "activity_level": level_key,
                     "stage": STAGE_BY_LEVEL.get(level_key, "unknown"),
                 }
             )
     return {
         "garmin_nights": pd.DataFrame(nights),
-        "garmin_hr": pd.DataFrame(heart_rate),
-        "garmin_spo2": pd.DataFrame(spo2),
-        "garmin_hrv": pd.DataFrame(hrv),
-        "garmin_stages": pd.DataFrame(stages),
+        "garmin_hr": _utc_columns(pd.DataFrame(heart_rate), ["timestamp_utc"], unit="ms"),
+        "garmin_spo2": _utc_columns(pd.DataFrame(spo2), ["timestamp_utc"]),
+        "garmin_hrv": _utc_columns(pd.DataFrame(hrv), ["timestamp_utc"], unit="ms"),
+        "garmin_stages": _utc_columns(pd.DataFrame(stages), ["start_utc", "end_utc"]),
     }
 
 

@@ -25,6 +25,8 @@ dev = [
 sleep-ingest = "sleep_analysis.ingest:main"
 sleep-build = "sleep_analysis.build:main"
 sleep-garmin-sync = "sleep_analysis.garmin_sync:main"
+sleep-update = "sleep_analysis.update:main"
+sleep-latest = "sleep_analysis.latest:main"
 
 [build-system]
 requires = ["hatchling"]

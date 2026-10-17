@@ -26,6 +26,7 @@ from sleep_analysis.paths import (
 )
 
 TOKEN_DIR = Path("~/.garminconnect").expanduser()
+AUTH_REQUIRED_EXIT = 3
 META_FILE = GARMIN_RAW_DIR / "sync_meta.json"
 DEFAULT_START = date(2024, 12, 13)
 REFRESH_DAYS = 3
@@ -34,6 +35,7 @@ DAY_FILE = "????-??-??.json"
 SOURCES = ("sleep", "stats", "activities")
 # Muda a cada leitura sem alterar o dia; não conta como recálculo.
 VOLATILE_KEYS = {"lastSyncTimestampGMT"}
+VERBOSE = True
 
 
 def same_payload(stored: dict, payload: dict) -> bool:
@@ -71,7 +73,7 @@ def import_dir(source: Path, snapshot_dir: Path) -> None:
     print(f"Importados de {source}: {counts}")
 
 
-def login():
+def login(interactive: bool = True):
     from garminconnect import Garmin, GarminConnectAuthenticationError
 
     TOKEN_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -80,6 +82,9 @@ def login():
         client.login(str(TOKEN_DIR))
         return client
     except GarminConnectAuthenticationError:
+        if not interactive:
+            print("Sem token válido do Garmin. Rode `uv run sleep-garmin-sync` num terminal para refazer o login.")
+            sys.exit(AUTH_REQUIRED_EXIT)
         print("Sem token válido; login no Garmin Connect (só nesta vez).")
 
     email = input("E-mail: ").strip()
@@ -128,7 +133,8 @@ def sync_sleep(client, days: list[date], snapshot_dir: Path) -> dict:
         counts[status] += 1
         sleep_seconds = (payload.get("dailySleepDTO") or {}).get("sleepTimeSeconds")
         hours = f"{sleep_seconds / 3600:.1f} h" if sleep_seconds else "sem sono"
-        print(f"  {day}: {status} ({hours})")
+        if VERBOSE:
+            print(f"  {day}: {status} ({hours})")
         time.sleep(REQUEST_PAUSE_SECONDS)
     return counts
 
@@ -141,7 +147,8 @@ def sync_stats(client, days: list[date], snapshot_dir: Path) -> dict:
         status = store_json(GARMIN_STATS_DIR / f"{day.isoformat()}.json", payload, snapshot_dir, "stats")
         counts[status] += 1
         steps = payload.get("totalSteps") if isinstance(payload, dict) else None
-        print(f"  {day}: {status} ({steps} passos)" if steps is not None else f"  {day}: {status}")
+        if VERBOSE:
+            print(f"  {day}: {status} ({steps} passos)" if steps is not None else f"  {day}: {status}")
         time.sleep(REQUEST_PAUSE_SECONDS)
     return counts
 
@@ -185,7 +192,8 @@ def sync_activities(client, start: date, end: date, snapshot_dir: Path) -> dict:
                 GARMIN_ACTIVITIES_DIR / f"{activity_id}.json", activity, snapshot_dir, "activities"
             )
             counts[status] += 1
-        print(f"  {window_start} a {window_end}: {len(activities)} atividades")
+        if VERBOSE:
+            print(f"  {window_start} a {window_end}: {len(activities)} atividades")
         time.sleep(REQUEST_PAUSE_SECONDS)
     return counts
 
@@ -241,6 +249,10 @@ def main() -> None:
     parser.add_argument("--end", type=date.fromisoformat, default=date.today(), help="Último dia (padrão: hoje)")
     parser.add_argument("--only", choices=SOURCES, action="append", help="Limita a sleep, stats ou activities")
     parser.add_argument("--no-fetch", action="store_true", help="Só importa a pasta, sem acessar o Garmin")
+    parser.add_argument("--quiet", action="store_true", help="Sem uma linha por dia; só as contagens")
+    parser.add_argument(
+        "--non-interactive", action="store_true", help=f"Sem token válido, sai com código {AUTH_REQUIRED_EXIT} em vez de pedir senha"
+    )
     args = parser.parse_args()
 
     snapshot_dir = SNAPSHOTS_DIR / datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -251,7 +263,9 @@ def main() -> None:
         return
 
     selected = args.only or list(SOURCES)
-    client = login()
+    client = login(interactive=not args.non_interactive)
+    global VERBOSE
+    VERBOSE = not args.quiet
     ranges, counts = {}, {}
     dated = {"sleep": (GARMIN_DAILY_DIR, sync_sleep), "stats": (GARMIN_STATS_DIR, sync_stats)}
     for kind in selected:

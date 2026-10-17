@@ -19,6 +19,8 @@ uv sync
 ## Como Usar
 
 ```bash
+uv run sleep-update      # tudo de uma vez: cartão, Garmin, build incremental e resumo das últimas noites
+uv run sleep-latest      # só o resumo das últimas noites
 uv run sleep-ingest D:   # backup incremental do cartão do CPAP para data/raw
 uv run sleep-build       # converte os EDF em tabelas Parquet em data/processed
 uv run jupyter lab       # abrir notebooks/01_overview.ipynb

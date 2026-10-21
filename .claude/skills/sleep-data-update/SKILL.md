@@ -1,11 +1,11 @@
 ---
 name: sleep-data-update
-description: Puxa os dados novos do cartão do CPAP (ResMed AirSense 10) e do Garmin, reconstrói as tabelas e resume as últimas noites. Use quando o usuário avisar que há noites novas, que colocou o cartão, ou pedir para atualizar, sincronizar ou ver como foram as últimas noites.
+description: Puxa os dados novos do cartão do CPAP (ResMed AirSense 10) e do Garmin, reconstrói as tabelas, resume as últimas noites e regenera o relatório comparativo com o link em localhost. Use quando o usuário avisar que há noites novas, que colocou o cartão, ou pedir para atualizar, sincronizar, ver como foram as últimas noites ou abrir o relatório.
 ---
 
 # Atualizar dados do CPAP e do Garmin
 
-Um comando faz tudo e devolve um resumo em Markdown pronto para ler. Leia o resumo, não os Parquet nem os EDF.
+Um comando faz tudo: devolve um resumo em Markdown pronto para ler e regenera a página `data/reports/comparativo.html`, servida em localhost. Leia o resumo, não os Parquet nem os EDF.
 
 ## Passos
 
@@ -13,15 +13,15 @@ Um comando faz tudo e devolve um resumo em Markdown pronto para ler. Leia o resu
 2. **Atualizar.** Na raiz do projeto:
 
    ```bash
-   uv run sleep-update            # cartão + Garmin + build incremental + últimas 7 noites
+   uv run sleep-update            # cartão + Garmin + build incremental + últimas 7 noites + relatório
    ```
 
-   Concluído quando a saída termina na seção `## Últimas noites`. Cada item de `Pendências:` no fim é tratado em [Pendências](#pendências).
-3. **Ler o resumo.** Ele traz a data da última noite em cada fonte, uma tabela do CPAP, uma do Garmin e o núcleo contra a referência anterior à cirurgia.
-   - ⚠ = acima do Q3 da referência; ⚠⚠ = acima do P90. A referência é a pressão anterior à cirurgia mais próxima com pelo menos 8 noites de sinal, e o resumo diz qual foi usada.
+   Concluído quando a saída tem a seção `## Últimas noites` e, depois dela, `## Relatório comparativo` com a linha `Abrir no navegador: http://127.0.0.1:<porta>/comparativo.html?v=...`. Cada item de `Pendências:` no fim é tratado em [Pendências](#pendências).
+3. **Ler o resumo.** Ele traz a data da última noite em cada fonte e dois grupos de indicadores, cada um com a tabela por noite e a mediana contra a referência anterior à cirurgia: os do aparelho (CPAP) e os calculados no fluxo de 25 Hz. Depois vem a tabela do Garmin.
+   - ⚠ = além do Q3 da referência (Q1 quando menor é pior); ⚠⚠ = além do P90 (P10). A referência é a pressão anterior à cirurgia mais próxima com pelo menos 8 noites de sinal, e o resumo diz qual foi usada.
    - Uma noite isolada só muda a conclusão se a diferença passar da coluna `mudança mínima`. Para tendência, use a mediana de 7 noites ou 3 noites seguidas no mesmo sentido.
-   - Os indicadores que decidem são limitação de fluxo, `rin` e ronco. O AHI só se reporta. A justificativa está em `docs/quality-indicators.md`.
-4. **Responder.** Comece pelo veredito das noites novas contra a referência e contra as noites anteriores na mesma pressão. Depois diga o que mudou de configuração (pressão, EPR, umidade) e se a meta combinada foi atingida.
+   - Aparelho: limitação de fluxo, `rin` e ronco decidem; o AHI só se reporta. Calculados: respirações achatadas, IAH do fluxo, surge e respiração estável; FR é contexto. Critério e literatura em `docs/quality-indicators.md`.
+4. **Responder.** Comece pelo veredito das noites novas contra a referência e contra as noites anteriores na mesma pressão, comentando os dois grupos e onde eles concordam ou divergem. Depois diga o que mudou de configuração (pressão, EPR, umidade) e se a meta ou a regra combinada em `cpap-pos-op` foi atingida. Feche com o link `Abrir no navegador` copiado da saída, como link Markdown clicável.
 5. **Registrar no vault.** Se a pasta `/home/lfmou/projects/obsidian` estiver aberta, atualize a tabela de dados do aparelho em `Pessoal/Saúde/cpap-pos-op.md` seguindo a skill `vault-memory` do vault.
 
 ## Pendências
@@ -32,6 +32,7 @@ Um comando faz tudo e devolve um resumo em Markdown pronto para ler. Leia o resu
 | `Garmin sem login` | O token em `~/.garminconnect` expirou. O login pede senha e MFA, então só o usuário consegue: peça para ele rodar `uv run sleep-garmin-sync` no terminal dele e depois `uv run sleep-update --skip-card`. |
 | `Limite de requisições` (na seção Garmin) | Siga com os dados já salvos e rode `--skip-card` mais tarde. |
 | `Garmin terminou com código N` | Leia a seção Garmin da saída; costuma ser rede. |
+| `relatório comparativo falhou` | Leia a seção `## Relatório comparativo`. Para só subir o servidor e pegar o link de uma página já gerada: `uv run sleep-serve`. |
 
 ## Detalhe sob demanda
 
@@ -59,3 +60,4 @@ Tabelas e colunas: `docs/architecture.md`. `uv run sleep-latest --nights 14` rei
 - A noite ResMed vai de meio-dia a meio-dia. A noite do Garmin é `calendarDate − 1`, e as duas usam a mesma chave `night`.
 - Se o cartão sair do aparelho no meio da noite, a última noite fica parcial; marque `partial` em `night_notes.json`.
 - O cartão guarda o nível do EPR mesmo com o EPR desligado. Use `epr_effective`, nunca `epr_level`.
+- O servidor do relatório (`sleep_analysis/serve.py`) roda solto do terminal em `127.0.0.1`, numa porta de 8765 a 8774, servindo só `data/reports`, e sobrevive ao fim do comando. Cada execução reaproveita o que já está no ar; o `?v=` do link força o navegador a buscar a versão nova. O Windows alcança a porta pelo localhost do WSL.

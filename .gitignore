@@ -43,3 +43,6 @@ Thumbs.db
 
 # Dados de saúde (cartão do CPAP e tabelas derivadas) não vão para o git
 data/
+
+# Configuração local do Claude Code
+.claude/settings.local.json

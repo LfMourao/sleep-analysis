@@ -13,6 +13,7 @@ from sleep_analysis.features import build_night_features
 from sleep_analysis.latest import CALCULATED, CORE, USAGE_MIN_HOURS
 from sleep_analysis.paths import REPORTS_DIR
 from sleep_analysis.reliability import load_indicator_config, pressure_response
+from sleep_analysis.serve import ensure_server, report_url
 from sleep_analysis.study import load_study
 
 TEMPLATE = Path(__file__).with_name("report_template.html")
@@ -249,11 +250,14 @@ def render_html(report: dict) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Gera a página comparativa em data/reports/comparativo.html")
     parser.add_argument("--output", type=Path, default=OUTPUT)
+    parser.add_argument("--serve", action="store_true", help="Sobe o servidor local e imprime o link para o navegador")
     args = parser.parse_args()
     report = build_report(build_night_features(connect()))
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(render_html(report), encoding="utf-8")
     print(f"Relatório comparativo -> {args.output}")
+    if args.serve:
+        print(f"Abrir no navegador: {report_url(ensure_server())}")
 
 
 if __name__ == "__main__":

@@ -22,6 +22,7 @@ uv sync
 uv run sleep-update      # tudo de uma vez: cartão, Garmin, build incremental, resumo e relatório comparativo
 uv run sleep-latest      # só o resumo: indicadores do aparelho, calculados no fluxo e Garmin
 uv run sleep-report      # página data/reports/comparativo.html: cirurgia, pressão e últimas 90 noites
+uv run sleep-serve       # sobe o servidor local e imprime o link do relatório (o sleep-update já faz isso)
 uv run sleep-ingest D:   # backup incremental do cartão do CPAP para data/raw
 uv run sleep-build       # converte os EDF em tabelas Parquet em data/processed
 uv run jupyter lab       # abrir notebooks/01_overview.ipynb

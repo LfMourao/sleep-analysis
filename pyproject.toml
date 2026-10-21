@@ -28,6 +28,7 @@ sleep-garmin-sync = "sleep_analysis.garmin_sync:main"
 sleep-update = "sleep_analysis.update:main"
 sleep-latest = "sleep_analysis.latest:main"
 sleep-report = "sleep_analysis.report:main"
+sleep-serve = "sleep_analysis.serve:main"
 
 [build-system]
 requires = ["hatchling"]

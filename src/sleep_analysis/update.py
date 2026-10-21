@@ -67,7 +67,7 @@ def main() -> None:
     print("\n## Últimas noites\n")
     sys.stdout.flush()
     subprocess.run([sys.executable, "-m", "sleep_analysis.latest", "--nights", str(args.nights)], check=False)
-    if run_step("Relatório comparativo", ["sleep_analysis.report"], tail=2) != 0:
+    if run_step("Relatório comparativo", ["sleep_analysis.report", "--serve"], tail=3) != 0:
         problems.append("relatório comparativo falhou")
     if problems:
         print("\nPendências: " + "; ".join(problems) + ".")

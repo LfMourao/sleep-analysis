@@ -14,6 +14,15 @@ CORE = {
     "rin": "rin",
     "snore_min_h": "ronco",
 }
+# Calculados neste repositório sobre o fluxo de 25 Hz, um por dimensão. Escolha e fontes em
+# docs/quality-indicators.md, seção "Grupo calculado". (rótulo, valor maior é pior)
+CALCULATED = {
+    "flow_limited_pct": ("achatadas %", True),
+    "hypopnea50_per_usage_h": ("IAH fluxo", True),
+    "surge_index": ("surge", True),
+    "stable_pct": ("estável %", False),
+    "flow_resp_rate": ("FR", None),
+}
 MIN_REFERENCE_NIGHTS = 8
 USAGE_MIN_HOURS = 4
 
@@ -45,12 +54,42 @@ def reference_for(features: pd.DataFrame, pressure: float) -> tuple[float | None
     return chosen, before[np.isclose(before["pressure"], chosen)]
 
 
-def _flag(value, column: str, reference: pd.DataFrame) -> str:
-    if pd.isna(value) or reference[column].notna().sum() < MIN_REFERENCE_NIGHTS:
+def _flag(value, column: str, reference: pd.DataFrame, higher_is_worse: bool = True) -> str:
+    if pd.isna(value) or column not in reference or reference[column].notna().sum() < MIN_REFERENCE_NIGHTS:
         return _fmt(value)
-    q3, p90 = reference[column].quantile([0.75, 0.90])
-    marker = " ⚠⚠" if value > p90 else " ⚠" if value > q3 else ""
+    if higher_is_worse:
+        q3, p90 = reference[column].quantile([0.75, 0.90])
+        marker = " ⚠⚠" if value > p90 else " ⚠" if value > q3 else ""
+    else:
+        q1, p10 = reference[column].quantile([0.25, 0.10])
+        marker = " ⚠⚠" if value < p10 else " ⚠" if value < q1 else ""
     return f"{_fmt(value)}{marker}"
+
+
+def _summary_rows(indicators: dict, comparable: pd.DataFrame, reference: pd.DataFrame, mdc: dict) -> list[list[str]]:
+    rows = []
+    for column, spec in indicators.items():
+        label, higher_is_worse = spec if isinstance(spec, tuple) else (spec, True)
+        if column not in reference:
+            continue
+        values = comparable[column].dropna()
+        base = reference[column].dropna()
+        if base.empty:
+            continue
+        if higher_is_worse is None:
+            attention = regression = "—"
+        else:
+            levels = (0.75, 0.90) if higher_is_worse else (0.25, 0.10)
+            attention, regression = (_fmt(base.quantile(level), 2) for level in levels)
+        rows.append([
+            label,
+            f"{_fmt(values.median(), 2)} (n={len(values)})" if not values.empty else "—",
+            _fmt(base.median(), 2),
+            attention,
+            regression,
+            _fmt(mdc.get(column), 2),
+        ])
+    return rows
 
 
 def freshness(features: pd.DataFrame) -> str:
@@ -102,10 +141,22 @@ def render(features: pd.DataFrame, nights: int) -> str:
             _fmt(row.leak_95_l_min),
             note,
         ])
-    blocks.append("CPAP\n\n" + _table(
+    cpap_table = "CPAP: indicadores do aparelho\n\n" + _table(
         cpap_rows,
         ["noite", "cmH2O", "EPR", "umid.", "uso h", "AHI", "rin", "limitação", "ronco", "CAI", "vaz. p95", "nota"],
-    ))
+    )
+
+    calculated_rows = []
+    for row in recent.itertuples():
+        row_reference = references.get(row.pressure, empty)
+        cells = [f"{row.night:%d/%m}", _fmt(row.pressure)]
+        for column, (_, higher_is_worse) in CALCULATED.items():
+            value = getattr(row, column, np.nan)
+            cells.append(_fmt(value) if higher_is_worse is None else _flag(value, column, row_reference, higher_is_worse))
+        calculated_rows.append(cells)
+    calculated_table = "Calculados no fluxo de 25 Hz\n\n" + _table(
+        calculated_rows, ["noite", "cmH2O", *[label for label, _ in CALCULATED.values()]],
+    )
 
     garmin_rows = [
         [
@@ -121,35 +172,31 @@ def render(features: pd.DataFrame, nights: int) -> str:
         ]
         for row in recent.itertuples()
     ]
-    blocks.append("Garmin\n\n" + _table(
+    garmin_table = "Garmin\n\n" + _table(
         garmin_rows, ["noite", "sono h", "HRV", "FC rep.", "estresse", "SpO2 méd.", "SpO2 mín.", "despertares", "profundo h"],
-    ))
+    )
 
     if reference_pressure is None:
-        blocks.append("Sem referência anterior à cirurgia com sinal suficiente.")
+        blocks += [cpap_table, calculated_table, garmin_table, "Sem referência anterior à cirurgia com sinal suficiente."]
         return "\n\n".join(blocks)
 
     comparable = recent[(recent["usage_hours"] >= USAGE_MIN_HOURS) & np.isclose(recent["pressure"], pressure)]
-    summary_rows = []
-    for column, label in CORE.items():
-        values = comparable[column].dropna()
-        base = reference[column].dropna()
-        if base.empty:
-            continue
-        summary_rows.append([
-            label,
-            f"{_fmt(values.median(), 2)} (n={len(values)})" if not values.empty else "—",
-            _fmt(base.median(), 2),
-            _fmt(base.quantile(0.75), 2),
-            _fmt(base.quantile(0.90), 2),
-            _fmt(mdc.get(column), 2),
-        ])
+    header = ["indicador", "recentes", "mediana ref.", "atenção", "regressão", "mudança mínima"]
+    blocks.append(cpap_table)
     blocks.append(
-        f"Núcleo: mediana das noites acima a {pressure:.1f} cmH2O com uso ≥ {USAGE_MIN_HOURS} h contra a referência "
+        f"Mediana das noites acima a {pressure:.1f} cmH2O com uso ≥ {USAGE_MIN_HOURS} h contra a referência "
         f"de {len(reference)} noites antes da cirurgia a {reference_pressure:.1f} cmH2O. "
-        "Cada noite é marcada contra a referência da própria pressão: ⚠ acima do Q3; ⚠⚠ acima do P90. Uma noite só muda a conclusão se passar da mudança mínima detectável.\n\n"
-        + _table(summary_rows, ["indicador", "recentes", "mediana ref.", "Q3", "P90", "mudança mínima"])
+        "Cada noite é marcada contra a referência da própria pressão: ⚠ além do Q3 (Q1 quando menor é pior); "
+        "⚠⚠ além do P90 (P10). Uma noite só muda a conclusão se passar da mudança mínima detectável.\n\n"
+        + _table(_summary_rows(CORE, comparable, reference, mdc), header)
     )
+    blocks.append(calculated_table)
+    blocks.append(
+        "Mesma referência. Achatadas, IAH e surge: maior é pior; estável: menor é pior; FR é contexto, sem marca. "
+        "São mais ruidosos que os do aparelho: leia a mediana da semana, não a noite.\n\n"
+        + _table(_summary_rows(CALCULATED, comparable, reference, mdc), header)
+    )
+    blocks.append(garmin_table)
     return "\n\n".join(blocks)
 
 

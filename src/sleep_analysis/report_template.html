@@ -1,0 +1,484 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>Relatório comparativo do sono</title>
+<style>
+.viz-root {
+  color-scheme: light;
+  --page: #f9f9f7;
+  --surface-1: #fcfcfb;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #898781;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --border: rgba(11,11,11,0.10);
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --wash-1: rgba(42,120,214,0.10);
+  --good: #0ca30c;
+  --serious: #ec835a;
+  --critical: #d03b3b;
+  --neutral: #898781;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .viz-root {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface-1: #1a1a19;
+    --text-primary: #f0efec;
+    --text-secondary: #c3c2b7;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --border: rgba(255,255,255,0.10);
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --wash-1: rgba(57,135,229,0.14);
+  }
+}
+:root[data-theme="dark"] .viz-root {
+  color-scheme: dark;
+  --page: #0d0d0d;
+  --surface-1: #1a1a19;
+  --text-primary: #f0efec;
+  --text-secondary: #c3c2b7;
+  --grid: #2c2c2a;
+  --axis: #383835;
+  --border: rgba(255,255,255,0.10);
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --wash-1: rgba(57,135,229,0.14);
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+.viz-root {
+  background: var(--page); color: var(--text-primary);
+  font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  min-height: 100vh; padding: 32px 24px 64px;
+}
+.wrap { max-width: 1120px; margin: 0 auto; }
+h1 { font-size: 26px; margin: 0 0 4px; font-weight: 600; }
+h2 { font-size: 20px; margin: 48px 0 4px; font-weight: 600; }
+h3 { font-size: 15px; margin: 24px 0 8px; font-weight: 600; color: var(--text-secondary); }
+p { margin: 4px 0 12px; color: var(--text-secondary); max-width: 860px; }
+.meta { color: var(--text-muted); font-size: 13px; }
+nav { display: flex; gap: 16px; flex-wrap: wrap; margin: 16px 0 0; font-size: 13px; }
+nav a { color: var(--text-secondary); }
+.note { border: 1px solid var(--border); background: var(--surface-1); border-radius: 8px; padding: 12px 16px; margin: 16px 0; color: var(--text-secondary); max-width: 860px; }
+.note strong { color: var(--text-primary); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; }
+.grid.wide { grid-template-columns: repeat(auto-fill, minmax(500px, 1fr)); }
+.card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 12px 12px 4px; }
+.card .title { font-weight: 600; font-size: 13px; }
+.card .sub { color: var(--text-muted); font-size: 12px; min-height: 18px; }
+svg { display: block; width: 100%; height: auto; overflow: visible; }
+svg text { font: 11px system-ui, -apple-system, "Segoe UI", sans-serif; fill: var(--text-muted); font-variant-numeric: tabular-nums; }
+svg text.label { fill: var(--text-secondary); }
+.legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 12px; color: var(--text-secondary); margin: 8px 0 12px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.key-line { width: 16px; height: 2px; border-radius: 1px; display: inline-block; }
+.key-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+th, td { padding: 6px 10px; text-align: right; border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th { color: var(--text-secondary); font-weight: 600; background: var(--page); }
+tr.group td { background: var(--page); color: var(--text-secondary); font-weight: 600; text-align: left; }
+.verdict { display: inline-flex; align-items: center; gap: 6px; }
+.verdict i { font-style: normal; font-weight: 700; width: 16px; height: 16px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 11px; color: #fff; }
+details { margin: 12px 0; }
+summary { cursor: pointer; color: var(--text-secondary); font-size: 13px; }
+.scroll { overflow-x: auto; margin-top: 8px; }
+#tooltip { position: fixed; pointer-events: none; z-index: 10; background: var(--surface-1); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-size: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.12); display: none; min-width: 140px; }
+#tooltip .head { color: var(--text-muted); margin-bottom: 4px; }
+#tooltip .row { display: flex; align-items: center; gap: 8px; }
+#tooltip .row b { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+#tooltip .row span { color: var(--text-secondary); }
+.hit { fill: transparent; cursor: pointer; outline: none; }
+.hit:focus + .dot, .hit:hover + .dot { stroke: var(--text-primary); stroke-width: 2px; }
+</style>
+</head>
+<body>
+<div class="viz-root">
+<div class="wrap">
+  <h1>Relatório comparativo do sono</h1>
+  <div class="meta" id="meta"></div>
+  <nav>
+    <a href="#cirurgia">Antes e depois da cirurgia</a>
+    <a href="#pressao">Pressão do CPAP</a>
+    <a href="#historico">Últimas 90 noites</a>
+  </nav>
+  <div class="note" id="caveat"></div>
+
+  <section id="cirurgia">
+    <h2>Antes e depois da cirurgia</h2>
+    <p id="surgery-intro"></p>
+    <div class="scroll"><table id="surgery-table"></table></div>
+    <div id="surgery-charts"></div>
+  </section>
+
+  <section id="pressao">
+    <h2>Pressão do CPAP</h2>
+    <p>Cada painel mostra a mediana do indicador por faixa de pressão nas noites antes da cirurgia (a faixa sombreada vai do Q1 ao Q3) e, por cima, cada noite depois da cirurgia na pressão em que foi dormida.</p>
+    <div class="note"><strong>As faixas misturam épocas.</strong> Cada faixa de pressão foi usada num período diferente, com outros hábitos e outra estação. O efeito que isola a pressão é o das trocas: a mediana de até 7 noites depois de cada troca contra as 7 noites antes, por cmH2O. Quando a faixa e a troca apontam em sentidos opostos, vale a troca.</div>
+    <div class="legend">
+      <span><i class="key-line" style="background:var(--series-1)"></i>Antes da cirurgia: mediana por faixa</span>
+      <span><i class="key-dot" style="background:var(--series-2)"></i>Depois da cirurgia: cada noite</span>
+      <span>Eixo horizontal: pressão em cmH2O</span>
+    </div>
+    <div class="grid" id="pressure-charts"></div>
+    <h3>Efeito de +1 cmH2O nas trocas de pressão (antes da cirurgia)</h3>
+    <div class="scroll"><table id="pressure-table"></table></div>
+  </section>
+
+  <section id="historico">
+    <h2>Últimas 90 noites</h2>
+    <p id="history-intro"></p>
+    <div class="card"><div class="title">Pressão (cmH2O)</div><div class="sub">Noites com uso do CPAP</div><div id="pressure-step"></div></div>
+    <div id="history-charts"></div>
+    <details><summary>Ver tabela das 90 noites</summary><div class="scroll"><table id="history-table"></table></div></details>
+  </section>
+</div>
+<div id="tooltip" role="status" aria-live="polite"></div>
+</div>
+<script type="application/json" id="report-data">__REPORT_DATA__</script>
+<script>
+(() => {
+  const data = JSON.parse(document.getElementById("report-data").textContent);
+  const NS = "http://www.w3.org/2000/svg";
+  const GROUP_COLORS = { "Antes": "var(--series-1)", "Recuperação": "var(--series-2)", "Depois": "var(--series-3)" };
+  const tooltip = document.getElementById("tooltip");
+
+  const el = (tag, attrs = {}, parent) => {
+    const node = document.createElementNS(NS, tag);
+    for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value);
+    if (parent) parent.appendChild(node);
+    return node;
+  };
+  const html = (tag, text, parent, cls) => {
+    const node = document.createElement(tag);
+    if (text !== undefined && text !== null) node.textContent = text;
+    if (cls) node.className = cls;
+    if (parent) parent.appendChild(node);
+    return node;
+  };
+  const fmt = (value, digits = 1) => value === null || value === undefined ? "—" : Number(value).toLocaleString("pt-BR", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  const signed = (value, digits = 1) => value === null || value === undefined ? "—" : (value > 0 ? "+" : "") + fmt(value, digits);
+  const digitsFor = unit => unit === "bpm" || unit === "ms" ? 0 : unit === "/h" ? 2 : 1;
+  const dateBr = iso => { const [y, m, d] = iso.split("-"); return `${d}/${m}/${y}`; };
+  const dateShort = iso => { const [, m, d] = iso.split("-"); return `${d}/${m}`; };
+
+  function niceTicks(min, max, count = 4) {
+    if (min === max) { min -= 1; max += 1; }
+    const span = max - min, raw = span / count, power = Math.pow(10, Math.floor(Math.log10(raw)));
+    const step = [1, 2, 2.5, 5, 10].map(f => f * power).find(s => s >= raw);
+    const start = Math.floor(min / step) * step, ticks = [];
+    for (let v = start; ticks.length < 2 || ticks[ticks.length - 1] < max; v += step) ticks.push(Number(v.toFixed(6)));
+    ticks.step = step;
+    return ticks;
+  }
+  const scale = (d0, d1, r0, r1) => v => r0 + (v - d0) / (d1 - d0 || 1) * (r1 - r0);
+
+  function showTooltip(event, head, rows) {
+    tooltip.replaceChildren();
+    html("div", head, tooltip, "head");
+    for (const row of rows) {
+      const line = html("div", null, tooltip, "row");
+      if (row.color) { const key = html("i", null, line, row.kind === "dot" ? "key-dot" : "key-line"); key.style.background = row.color; }
+      html("b", row.value, line);
+      html("span", row.label, line);
+    }
+    tooltip.style.display = "block";
+    const box = tooltip.getBoundingClientRect();
+    const x = event.clientX ?? (event.target.getBoundingClientRect().left + 8);
+    const y = event.clientY ?? event.target.getBoundingClientRect().top;
+    tooltip.style.left = Math.min(window.innerWidth - box.width - 8, x + 14) + "px";
+    tooltip.style.top = Math.max(8, y - box.height - 12) + "px";
+  }
+  const hideTooltip = () => { tooltip.style.display = "none"; };
+
+  function yAxis(svg, y, ticks, left, right) {
+    const decimals = ticks.step >= 1 ? 0 : ticks.step >= 0.1 ? 1 : 2;
+    for (const tick of ticks) {
+      el("line", { x1: left, x2: right, y1: y(tick), y2: y(tick), stroke: "var(--grid)", "stroke-width": 1 }, svg);
+      el("text", { x: left - 6, y: y(tick) + 4, "text-anchor": "end" }, svg).textContent = fmt(tick, decimals);
+    }
+  }
+
+  function bindHit(hit, handler) {
+    hit.setAttribute("tabindex", "0");
+    hit.addEventListener("pointermove", handler);
+    hit.addEventListener("focus", handler);
+    hit.addEventListener("pointerleave", hideTooltip);
+    hit.addEventListener("blur", hideTooltip);
+  }
+
+  // --- Cabeçalho ---
+  document.getElementById("meta").textContent = `Gerado em ${data.generated} · última noite ${data.last_night} · cirurgia em ${data.surgery}`;
+  const caveat = document.getElementById("caveat");
+  caveat.replaceChildren();
+  html("strong", "Como ler. ", caveat);
+  caveat.append(`Noites com uso ≥ ${data.usage_min_hours} h e sem uso parcial. ⚠ Os dados só existem com o CPAP ligado: mostram o sono tratado, não a apneia sem o aparelho. Os indicadores do aparelho são mais estáveis; os calculados no fluxo seguem definições da literatura, mas variam mais de noite para noite. Hábitos do dia ainda não estão registrados e não entram aqui.`);
+
+  // --- Antes e depois ---
+  const section = data.surgery_section;
+  const ranges = section.ranges;
+  const groupNames = ["Antes", "Recuperação", "Depois"].filter(name => section.rows[0].groups[name].n > 0);
+  const compared = groupNames.filter(name => name !== "Antes");
+  const describe = name => {
+    const range = ranges[name];
+    const n = section.rows[0].groups[name].n;
+    if (!range) return `${name}: sem noites ainda`;
+    const levels = section.pressures[name].map(p => fmt(p)).join(" e ");
+    return `${name}: ${n} noites de ${range[0]} a ${range[1]}, a ${levels} cmH2O`;
+  };
+  document.getElementById("surgery-intro").textContent =
+    `${describe("Antes")}. ${describe("Recuperação")} (até ${data.recovery_end}). ${describe("Depois")}. ` +
+    "A diferença é a mediana do grupo menos a de antes, com intervalo de 90% por bootstrap. Com poucas noites, o intervalo é largo: leia a leitura como provisória.";
+
+  const VERDICT = {
+    "melhor": ["var(--good)", "✓"], "pior": ["var(--critical)", "!"],
+    "sem diferença clara": ["var(--neutral)", "="], "maior": ["var(--neutral)", "↑"], "menor": ["var(--neutral)", "↓"],
+    "poucos dados": ["var(--neutral)", "·"],
+  };
+  const surgeryTable = document.getElementById("surgery-table");
+  const head = html("tr", null, html("thead", null, surgeryTable));
+  ["Indicador", "Antes: mediana (Q1–Q3)", ...compared.flatMap(name => [`${name}: mediana`, "Diferença (IC 90%)", "Leitura"])].forEach(t => html("th", t, head));
+  const body = html("tbody", null, surgeryTable);
+  const rowsByColumn = Object.fromEntries(section.rows.map(r => [r.column, r]));
+  for (const [group, columns] of Object.entries(data.groups)) {
+    const groupRow = html("tr", null, body, "group");
+    html("td", group, groupRow).colSpan = 2 + compared.length * 3;
+    for (const column of columns) {
+      const row = rowsByColumn[column];
+      if (!row) continue;
+      const tr = html("tr", null, body);
+      const d = digitsFor(row.unit);
+      html("td", `${row.label} (${row.unit})`, tr);
+      const before = row.groups["Antes"];
+      html("td", before.n ? `${fmt(before.median, d)} (${fmt(before.q1, d)}–${fmt(before.q3, d)})` : "—", tr);
+      for (const name of compared) {
+        const g = row.groups[name];
+        html("td", g.n ? `${fmt(g.median, d)} (n=${g.n})` : "—", tr);
+        html("td", g.delta !== undefined && g.delta !== null ? `${signed(g.delta, d)} (${signed(g.ci_low, d)} a ${signed(g.ci_high, d)})` : "—", tr);
+        const cell = html("td", null, tr);
+        if (g.verdict) {
+          const [color, icon] = VERDICT[g.verdict];
+          const wrap = html("span", null, cell, "verdict");
+          const mark = html("i", icon, wrap); mark.style.background = color;
+          html("span", g.verdict, wrap);
+        } else cell.textContent = "—";
+      }
+    }
+  }
+
+  function stripChart(container, row) {
+    const W = 340, H = 190, L = 40, R = 8, T = 10, B = 26;
+    const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": `${row.label} por período` }, container);
+    const points = section.points[row.column];
+    const all = groupNames.flatMap(n => points[n].map(p => p.value));
+    if (!all.length) return;
+    const ticks = niceTicks(Math.min(...all), Math.max(...all));
+    const y = scale(ticks[0], ticks[ticks.length - 1], H - B, T);
+    yAxis(svg, y, ticks, L, W - R);
+    const band = (W - L - R) / groupNames.length;
+    const d = digitsFor(row.unit);
+    groupNames.forEach((name, index) => {
+      const cx = L + band * index + band / 2;
+      el("text", { x: cx, y: H - 8, "text-anchor": "middle", class: "label" }, svg).textContent = `${name} (${points[name].length})`;
+      const stats = row.groups[name];
+      if (stats.n) {
+        el("line", { x1: cx - band * 0.32, x2: cx + band * 0.32, y1: y(stats.median), y2: y(stats.median), stroke: "var(--text-primary)", "stroke-width": 2, "stroke-linecap": "round" }, svg);
+      }
+      points[name].forEach((p, i) => {
+        const jitter = ((i * 37) % 21 - 10) / 10 * band * 0.22;
+        const g = el("g", {}, svg);
+        const hit = el("circle", { cx: cx + jitter, cy: y(p.value), r: 12, class: "hit" }, g);
+        el("circle", { cx: cx + jitter, cy: y(p.value), r: 4, fill: GROUP_COLORS[name], stroke: "var(--surface-1)", "stroke-width": 2, class: "dot", "fill-opacity": name === "Antes" ? 0.55 : 1 }, g);
+        bindHit(hit, e => showTooltip(e, `${dateBr(p.night)} · ${fmt(p.pressure)} cmH2O`, [{ value: `${fmt(p.value, d)} ${row.unit}`, label: name, color: GROUP_COLORS[name], kind: "dot" }]));
+      });
+    });
+  }
+
+  const surgeryCharts = document.getElementById("surgery-charts");
+  for (const [group, columns] of Object.entries(data.groups)) {
+    html("h3", group, surgeryCharts);
+    const grid = html("div", null, surgeryCharts, "grid");
+    for (const column of columns) {
+      const row = rowsByColumn[column];
+      if (!row) continue;
+      const card = html("div", null, grid, "card");
+      html("div", `${row.label} (${row.unit})`, card, "title");
+      const direction = row.higher_is_worse === null ? "contexto" : row.higher_is_worse ? "maior é pior" : "menor é pior";
+      html("div", `Cada ponto é uma noite; o traço é a mediana · ${direction}`, card, "sub");
+      stripChart(card, row);
+    }
+  }
+
+  // --- Pressão ---
+  function doseChart(container, chart) {
+    const W = 340, H = 200, L = 40, R = 10, T = 12, B = 30;
+    const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": `${chart.label} por pressão` }, container);
+    const values = [...chart.bands.flatMap(b => [b.q1, b.q3, b.median]), ...chart.post.map(p => p.value)];
+    if (!values.length) return;
+    const ticks = niceTicks(Math.min(...values), Math.max(...values));
+    const y = scale(ticks[0], ticks[ticks.length - 1], H - B, T);
+    const x = scale(5.6, 9.3, L + 6, W - R);
+    yAxis(svg, y, ticks, L, W - R);
+    [6, 7, 8, 9].forEach(p => { el("text", { x: x(p), y: H - 10, "text-anchor": "middle" }, svg).textContent = fmt(p, 0); });
+    const d = digitsFor(chart.unit);
+    if (chart.bands.length) {
+      const area = chart.bands.map((b, i) => `${i ? "L" : "M"}${x(b.pressure)},${y(b.q3)}`).join("") +
+        [...chart.bands].reverse().map(b => `L${x(b.pressure)},${y(b.q1)}`).join("") + "Z";
+      el("path", { d: area, fill: "var(--wash-1)" }, svg);
+      el("path", { d: chart.bands.map((b, i) => `${i ? "L" : "M"}${x(b.pressure)},${y(b.median)}`).join(""), fill: "none", stroke: "var(--series-1)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, svg);
+      for (const b of chart.bands) {
+        const g = el("g", {}, svg);
+        const hit = el("circle", { cx: x(b.pressure), cy: y(b.median), r: 12, class: "hit" }, g);
+        el("circle", { cx: x(b.pressure), cy: y(b.median), r: 4, fill: "var(--series-1)", stroke: "var(--surface-1)", "stroke-width": 2, class: "dot" }, g);
+        bindHit(hit, e => showTooltip(e, `Faixa ${b.band} cmH2O · ${b.n} noites antes`, [
+          { value: `${fmt(b.median, d)} ${chart.unit}`, label: "mediana", color: "var(--series-1)" },
+          { value: `${fmt(b.q1, d)}–${fmt(b.q3, d)}`, label: "Q1–Q3" },
+        ]));
+      }
+    }
+    chart.post.forEach((p, i) => {
+      const offset = ((i % 5) - 2) * 3;
+      const g = el("g", {}, svg);
+      const hit = el("circle", { cx: x(p.pressure) + offset, cy: y(p.value), r: 12, class: "hit" }, g);
+      el("circle", { cx: x(p.pressure) + offset, cy: y(p.value), r: 4, fill: "var(--series-2)", stroke: "var(--surface-1)", "stroke-width": 2, class: "dot" }, g);
+      bindHit(hit, e => showTooltip(e, `${dateBr(p.night)} · ${fmt(p.pressure)} cmH2O`, [{ value: `${fmt(p.value, d)} ${chart.unit}`, label: "depois da cirurgia", color: "var(--series-2)", kind: "dot" }]));
+    });
+  }
+
+  const pressureCharts = document.getElementById("pressure-charts");
+  const pressureTable = document.getElementById("pressure-table");
+  const ph = html("tr", null, html("thead", null, pressureTable));
+  ["Indicador", "Efeito por +1 cmH2O", "Trocas analisadas", "Trocas no sentido esperado", ...[]].forEach(t => html("th", t, ph));
+  const pb = html("tbody", null, pressureTable);
+  for (const chart of data.pressure_section.charts) {
+    const card = html("div", null, pressureCharts, "card");
+    html("div", `${chart.label} (${chart.unit})`, card, "title");
+    const effect = chart.effect_per_cm === null ? "sem efeito estimado" : `nas trocas: ${signed(chart.effect_per_cm, 2)} ${chart.unit} por +1 cmH2O`;
+    html("div", effect, card, "sub");
+    doseChart(card, chart);
+    const tr = html("tr", null, pb);
+    html("td", `${chart.label} (${chart.unit})`, tr);
+    html("td", chart.effect_per_cm === null ? "—" : `${signed(chart.effect_per_cm, 2)} ${chart.unit}`, tr);
+    html("td", chart.n_switches || "—", tr);
+    html("td", chart.hit_rate === null ? "—" : `${fmt(chart.hit_rate * 100, 0)}%`, tr);
+  }
+
+  // --- Histórico ---
+  const history = data.history;
+  const N = history.nights.length;
+  document.getElementById("history-intro").textContent =
+    `De ${dateBr(history.nights[0])} a ${dateBr(history.nights[N - 1])}. Pontos são noites com uso ≥ ${data.usage_min_hours} h (o Garmin entra em todas); a linha é a mediana móvel de 7 noites. ` +
+    `${history.without_cpap} noites sem CPAP no período, incluindo a pausa depois da cirurgia. Passe o cursor para ver os valores de cada noite.`;
+
+  function timeline(container, series, opts = {}) {
+    const W = opts.width || 500, H = opts.height || 150, L = 40, R = 10, T = 10, B = 22;
+    const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": series.label }, container);
+    const vals = [...series.values, ...(series.rolling || [])].filter(v => v !== null);
+    if (!vals.length) return;
+    const ticks = niceTicks(Math.min(...vals), Math.max(...vals), opts.ticks || 3);
+    const y = scale(ticks[0], ticks[ticks.length - 1], H - B, T);
+    const x = scale(0, N - 1, L + 4, W - R - 4);
+    yAxis(svg, y, ticks, L, W - R);
+    const monthTicks = history.nights.map((n, i) => [n, i]).filter(([n]) => n.endsWith("-01"));
+    for (const [n, i] of monthTicks) el("text", { x: x(i), y: H - 6, "text-anchor": "middle" }, svg).textContent = dateShort(n);
+    if (history.surgery) {
+      const i = history.nights.indexOf(history.surgery);
+      el("line", { x1: x(i), x2: x(i), y1: T, y2: H - B, stroke: "var(--axis)", "stroke-width": 1 }, svg);
+      el("text", { x: x(i) + 4, y: T + 9, class: "label" }, svg).textContent = "cirurgia";
+    }
+    if (opts.step) {
+      let path = "", open = false;
+      series.values.forEach((v, i) => {
+        if (v === null) { open = false; return; }
+        path += open ? `H${x(i)}V${y(v)}` : `M${x(i)},${y(v)}`;
+        open = true;
+      });
+      el("path", { d: path, fill: "none", stroke: "var(--series-1)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, svg);
+    } else {
+      series.values.forEach((v, i) => {
+        if (v === null) return;
+        el("circle", { cx: x(i), cy: y(v), r: 3, fill: "var(--series-1)", "fill-opacity": 0.45 }, svg);
+      });
+      let path = "", previous = null;
+      series.rolling.forEach((v, i) => {
+        if (v === null) return;
+        path += `${previous !== null && i - previous <= history.max_gap_days ? "L" : "M"}${x(i)},${y(v)}`;
+        previous = i;
+      });
+      el("path", { d: path, fill: "none", stroke: "var(--series-1)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, svg);
+    }
+    const cross = el("line", { y1: T, y2: H - B, stroke: "var(--text-muted)", "stroke-width": 1, visibility: "hidden" }, svg);
+    const marker = el("circle", { r: 4, fill: "var(--series-1)", stroke: "var(--surface-1)", "stroke-width": 2, visibility: "hidden" }, svg);
+    const overlay = el("rect", { x: L, y: T, width: W - L - R, height: H - T - B, fill: "transparent", tabindex: 0 }, svg);
+    const d = digitsFor(series.unit);
+    let focusIndex = N - 1;
+    const show = (index, event) => {
+      const v = series.values[index], r = series.rolling ? series.rolling[index] : null;
+      cross.setAttribute("x1", x(index)); cross.setAttribute("x2", x(index)); cross.setAttribute("visibility", "visible");
+      if (v !== null) { marker.setAttribute("cx", x(index)); marker.setAttribute("cy", y(v)); marker.setAttribute("visibility", "visible"); }
+      else marker.setAttribute("visibility", "hidden");
+      const rows = [{ value: v === null ? "sem dado" : `${fmt(v, d)} ${series.unit}`, label: "noite", color: "var(--series-1)", kind: "dot" }];
+      if (series.rolling) rows.push({ value: r === null ? "—" : `${fmt(r, d)} ${series.unit}`, label: "mediana de 7", color: "var(--series-1)" });
+      const p = history.pressure[index];
+      showTooltip(event, `${dateBr(history.nights[index])}${p !== null ? ` · ${fmt(p)} cmH2O` : " · sem CPAP"}`, rows);
+    };
+    const hide = () => { cross.setAttribute("visibility", "hidden"); marker.setAttribute("visibility", "hidden"); hideTooltip(); };
+    overlay.addEventListener("pointermove", e => {
+      const box = svg.getBoundingClientRect();
+      const px = (e.clientX - box.left) / box.width * W;
+      focusIndex = Math.max(0, Math.min(N - 1, Math.round((px - (L + 4)) / ((W - R - 4) - (L + 4)) * (N - 1))));
+      show(focusIndex, e);
+    });
+    overlay.addEventListener("pointerleave", hide);
+    overlay.addEventListener("blur", hide);
+    overlay.addEventListener("keydown", e => {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      focusIndex = Math.max(0, Math.min(N - 1, focusIndex + (e.key === "ArrowRight" ? 1 : -1)));
+      const box = svg.getBoundingClientRect();
+      show(focusIndex, { clientX: box.left + x(focusIndex) / W * box.width, clientY: box.top + 20 });
+      e.preventDefault();
+    });
+  }
+
+  timeline(document.getElementById("pressure-step"), { label: "Pressão", unit: "cmH2O", values: history.pressure }, { width: 1000, height: 110, step: true, ticks: 2 });
+  const historyCharts = document.getElementById("history-charts");
+  const byColumn = Object.fromEntries(history.series.map(s => [s.column, s]));
+  for (const [group, columns] of Object.entries(history.groups)) {
+    html("h3", group, historyCharts);
+    const grid = html("div", null, historyCharts, "grid wide");
+    for (const column of columns) {
+      const series = byColumn[column];
+      if (!series) continue;
+      const card = html("div", null, grid, "card");
+      html("div", `${series.label} (${series.unit})`, card, "title");
+      const d = digitsFor(series.unit);
+      html("div", `Mediana das 90 noites ${fmt(series.median, d)} · últimas 7 ${fmt(series.recent_median, d)} · ${series.n} noites`, card, "sub");
+      timeline(card, series);
+    }
+  }
+  const historyTable = document.getElementById("history-table");
+  const hh = html("tr", null, html("thead", null, historyTable));
+  html("th", "Noite", hh); html("th", "cmH2O", hh);
+  history.series.forEach(s => html("th", `${s.label} (${s.unit})`, hh));
+  const hb = html("tbody", null, historyTable);
+  for (let i = N - 1; i >= 0; i--) {
+    const tr = html("tr", null, hb);
+    html("td", dateBr(history.nights[i]), tr);
+    html("td", fmt(history.pressure[i]), tr);
+    history.series.forEach(s => html("td", fmt(s.values[i], digitsFor(s.unit)), tr));
+  }
+})();
+</script>
+</body>
+</html>

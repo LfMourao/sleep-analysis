@@ -66,6 +66,53 @@ A nota vai de 0 a 1 e combina seis critérios (explicados em [Como a nota é cal
 
 **Por que o Garmin aparece alto no ranking e não entra no núcleo.** Indicadores do relógio não têm resposta à pressão nem convergência (não faz sentido validar o Garmin contra o próprio Garmin), então a nota deles é calculada só com os critérios restantes, em que se saem bem: cobertura alta e pouca interferência de vazamento. Nenhum passa no corte de repetibilidade, e a validação publicada é fraca para fases e moderada para HRV.
 
+## Grupo calculado (relatório)
+
+O `sleep-latest` mostra dois grupos lado a lado: os indicadores do aparelho (núcleo acima) e um indicador calculado no fluxo de 25 Hz por dimensão fisiológica. Os calculados não entram no índice, mas aparecem sempre, com a mesma referência e as mesmas marcas.
+
+**Por que mostrar os dois.** A repetibilidade baixa dos calculados não prova que eles medem mal:
+
+- Hábitos, estresse e comida mudam a noite de verdade e derrubam o ICC entre noites. As metades da mesma noite não sofrem esse efeito. Mesmo assim, os calculados também concordam menos entre as metades (0,43 a 0,67) que os do aparelho (0,74 a 0,85). Parte do ruído é de contagem: com 1 a 2 eventos por hora, cada metade tem poucos eventos.
+- O canal de limitação do aparelho não é uma fórmula sintética lisa. Os trechos com limitação duram em mediana 10 s (P90 24 s), poucas respirações.
+- Não há validação publicada contra polissonografia para os canais de limitação, RERA (`rin`) e ronco da ResMed; só o AHI do aparelho foi validado (Iftikhar 2023; Desai 2009). Os calculados seguem definições da literatura. Os do aparelho são estáveis e reagem à pressão, mas o algoritmo é fechado.
+
+**Escolhidos.** Repetibilidade e resposta à pressão nas noites antes da cirurgia com uso ≥ 4 h; evidência pela literatura.
+
+| Dimensão | Indicador | ICC / metades | Pressão | Evidência | Por que entra |
+|---|---|---|---|---|---|
+| Limitação inspiratória | `flow_limited_pct` (achatadas %) | 0,39 / — | 7 de 10 | Moderada | O sinal de fluxo com melhor ligação a sintomas: dobrou a chance de sonolência com IAH < 15 (Mann 2024), associou-se a lapsos de vigilância independentemente do IAH (Staykov 2024) e subiu de 2,9% para 14,7% do sono com CPAP subótimo, com o IAH quase parado (Parekh 2021). Sobe com vazamento |
+| Eventos | `hypopnea50_per_usage_h` (IAH fluxo) | 0,22 / 0,55 | 7 de 10 | Moderada para eficácia, fraca para sintomas | O número clínico, com a regra de 50% e por hora de uso, comparável ao AHI do aparelho. A definição muda muito o resultado (Ruehland 2009); sem SpO2 nem EEG não dá para aplicar a regra da AASM (Berry 2012) |
+| Fragmentação | `surge_index` (surge) | 0,24 / 0,43 | 7 de 10 | Fraca a moderada | O salto de ventilação depois do evento cresce com o despertar e a intensidade dele (Amatoury 2016; Zhang 2026). Também conta suspiros do sono tranquilo |
+| Estabilidade | `stable_pct` (estável %), menor é pior | 0,24 / — | 5 de 10 | Moderada para sono e vigília | Respiração regular marca o NREM estável (Thomas 2005; Wood 2020); irregularidade no fluxo do CPAP previu vigília no EEG (Ayappa 2009) |
+| Contexto | `flow_resp_rate` (FR), sem marca | — | — | Fraca | Muda com estado e doença (Douglas 1982). Caiu de 17,4 para 16 depois da cirurgia |
+
+**Fora do relatório:**
+
+- `ned_median`: é a entrada do `flow_limited_pct`; liga-se ao local do colapso (Genta 2017), não a sintomas.
+- `flatness_median`: ICC 0,73, o mais estável de todos, mas muda só 0,011 por cmH2O.
+- `hypopnea30_with_surge_index` (ICC −0,04) e `rera_like_index` (−0,06): instáveis.
+- `periodicity_index`: vigiar se a pressão subir, pela apneia central que surge com o tratamento (Liu 2017); o CAI do aparelho já cobre.
+- Carga ventilatória (Parekh 2023: ICC 0,89 e mortalidade cardiovascular): testada em 21/10/2026 como % de respirações abaixo de 50% da base local, de 5 min e da noite. Deu ICC de 0,21 a 0,27, sem resposta à pressão e ρ 0,74 a 0,79 com o IAH do fluxo. Não reproduziu; o artigo usa a ventilação suavizada, não respiração a respiração.
+
+Referências do grupo calculado:
+
+- Ruehland 2009 ([10.1093/sleep/32.2.150](https://doi.org/10.1093/sleep/32.2.150))
+- Berry 2012 ([10.5664/jcsm.2172](https://doi.org/10.5664/jcsm.2172))
+- Iftikhar 2023 ([10.1007/s11325-023-02780-w](https://doi.org/10.1007/s11325-023-02780-w))
+- Desai 2009 ([10.1007/s11325-009-0258-2](https://doi.org/10.1007/s11325-009-0258-2))
+- Mann 2024 ([10.1513/AnnalsATS.202308-710OC](https://doi.org/10.1513/AnnalsATS.202308-710OC))
+- Staykov 2024 ([10.1016/j.chest.2023.11.031](https://doi.org/10.1016/j.chest.2023.11.031))
+- Parekh 2021 ([10.1093/sleep/zsab010](https://doi.org/10.1093/sleep/zsab010))
+- Parekh 2023 ([10.1164/rccm.202301-0109OC](https://doi.org/10.1164/rccm.202301-0109OC))
+- Amatoury 2016 ([10.5665/sleep.6304](https://doi.org/10.5665/sleep.6304))
+- Zhang 2026 ([10.1111/jsr.70412](https://doi.org/10.1111/jsr.70412))
+- Thomas 2005 ([10.1093/sleep/28.9.1151](https://doi.org/10.1093/sleep/28.9.1151))
+- Wood 2020 ([10.3389/fphys.2020.592978](https://doi.org/10.3389/fphys.2020.592978))
+- Ayappa 2009 ([PMC2625330](https://pmc.ncbi.nlm.nih.gov/articles/PMC2625330/))
+- Douglas 1982 ([10.1136/thx.37.11.840](https://doi.org/10.1136/thx.37.11.840))
+- Genta 2017 ([10.1016/j.chest.2017.06.017](https://doi.org/10.1016/j.chest.2017.06.017))
+- Liu 2017 ([10.1016/j.chest.2017.06.010](https://doi.org/10.1016/j.chest.2017.06.010))
+
 ## O índice da noite (v2)
 
 O índice compara a noite com a linha de base da mesma pressão, em desvios-padrão. Usa limitação de fluxo e `rin`, pesados pela estabilidade de cada um. **Maior = pior; 0 = noite típica.** Foi calibrado nas noites até abril/2026 e testado nas noites de maio em diante (125 noites), contra o Garmin:

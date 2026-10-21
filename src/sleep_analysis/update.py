@@ -1,4 +1,4 @@
-"""Atualiza tudo de uma vez: backup do cartão, Garmin, build incremental e resumo das últimas noites."""
+"""Atualiza tudo de uma vez: backup do cartão, Garmin, build incremental, resumo das últimas noites e relatório comparativo."""
 
 import argparse
 import subprocess
@@ -67,6 +67,8 @@ def main() -> None:
     print("\n## Últimas noites\n")
     sys.stdout.flush()
     subprocess.run([sys.executable, "-m", "sleep_analysis.latest", "--nights", str(args.nights)], check=False)
+    if run_step("Relatório comparativo", ["sleep_analysis.report"], tail=2) != 0:
+        problems.append("relatório comparativo falhou")
     if problems:
         print("\nPendências: " + "; ".join(problems) + ".")
 
